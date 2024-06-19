@@ -61,11 +61,11 @@ class MelSpectrogramGenerator:
             File name to save the generated spectrogram image.
         """
         # Generate Mel spectrogram and convert to log scale
-        mel = librosa.feature.melspectrogram(y, sr=self.sr, n_mels=self.n_mels, hop_length=self.hop_length)
+        mel = librosa.feature.melspectrogram(y=y, sr=self.sr, n_mels=self.n_mels, hop_length=self.hop_length)
         log_mel = librosa.power_to_db(mel, ref=np.max)
 
         # Plot and save the spectrogram as an image
         plt.figure(figsize=(10, 4))
-        librosa.display.specshow(log_mel, sr=self.sr, hop_length=self.hop_length, bbox_inches='tight', pad_inches=0)
+        librosa.display.specshow(log_mel, sr=self.sr, hop_length=self.hop_length, cmap='viridis')
         plt.savefig(f"{self.save_path}/{file_name}.png", bbox_inches='tight', pad_inches=0)
         plt.close()
