@@ -1,8 +1,10 @@
 import librosa
-from preprocessing import file_system_helper
 import matplotlib.pyplot as plt
 import numpy as np
 import librosa.display
+
+from preprocessing.file_system_helper import FileSystemHelper
+
 
 class MelSpectrogramGenerator:
     def __init__(self, save_path, sr, n_mels, hop_length):

@@ -1,7 +1,10 @@
-from preprocessing import audio_processor
-from preprocessing import mel_spectrogram_generator
-from preprocessing import file_system_helper
 import os
+
+from preprocessing.audio_processor import AudioProcessor
+from preprocessing.file_system_helper import FileSystemHelper
+from preprocessing.mel_spectrogram_generator import MelSpectrogramGenerator
+
+
 class ConverToMelSpectrogram:
     def __init__(self, folder_path, save_path, sr, duration, n_mels, hop_length):
         self.folder_path = folder_path
