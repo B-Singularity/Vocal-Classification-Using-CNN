@@ -47,7 +47,7 @@ class MelSpectrogramGenerator:
         self.sr = sr
         self.n_mels = n_mels
         self.hop_length = hop_length
-        FileSystemHelper.make_dir(save_path)
+        FileSystemHelper.ensure_directory_exists(save_path)
 
     def generate_and_save(self, y, file_name):
         """
@@ -67,5 +67,5 @@ class MelSpectrogramGenerator:
         # Plot and save the spectrogram as an image
         plt.figure(figsize=(10, 4))
         librosa.display.specshow(log_mel, sr=self.sr, hop_length=self.hop_length, cmap='viridis')
-        plt.savefig(f"{self.save_path}/{file_name}.png", bbox_inches='tight', pad_inches=0)
+        plt.savefig(f"{self.save_path}/{file_name}", bbox_inches='tight', pad_inches=0)
         plt.close()

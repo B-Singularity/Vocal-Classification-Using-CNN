@@ -47,7 +47,7 @@ class ConvertToMelSpectrogram:
         Converts all audio files in the specified folder to mel spectrogram images.
         The spectrogram images are saved in the specified save_path directory.
         """
-        wav_files = FileSystemHelper.get_wav_files(self.folder_path)
+        wav_files = FileSystemHelper.get_files_by_extension(self.folder_path, 'wav')
         for audio_path in wav_files:
             y, sr = self.audio_processor.load_audio(audio_path)
             audio_slices = self.audio_processor.split_audio(y)

@@ -10,7 +10,7 @@ class TestFileSystemHelper(unittest.TestCase):
         """Test the make_dir method."""
         with TemporaryDirectory() as tempdir:
             test_path = os.path.join(tempdir, 'test_directory')
-            FileSystemHelper.make_dir(test_path)
+            FileSystemHelper.ensure_directory_exists(test_path)
 
             # Verify that the directory was created
             self.assertTrue(os.path.exists(test_path))
@@ -28,7 +28,7 @@ class TestFileSystemHelper(unittest.TestCase):
                 open(os.path.join(test_folder, filename), 'a').close()
 
             # Call the method under test
-            wav_files = FileSystemHelper.get_wav_files(test_folder)
+            wav_files = FileSystemHelper.get_files_by_extension(test_folder, 'wav')
 
             # Verify the result
             expected_files = [os.path.join(test_folder, file) for file in ['test1.wav', 'test2.wav']]
