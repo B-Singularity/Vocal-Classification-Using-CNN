@@ -64,5 +64,5 @@ class MelSpectrogramLabeler:
             None
         """
         df = self.save_to_dataframe()
-        df.to_csv(output_path, index=False)
+        df.to_csv(output_path, index=True)
 
