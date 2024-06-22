@@ -2,10 +2,8 @@ import unittest
 import pandas as pd
 import os
 from unittest.mock import patch
-from io import BytesIO
-import torchaudio
 import torch
-from data.sound_dataset import SoundDataset  # 클래스가 정의된 파일 이름에 맞게 조정
+from data.sound_dataset import SoundDataset
 
 class TestSoundDataset(unittest.TestCase):
     def setUp(self):
