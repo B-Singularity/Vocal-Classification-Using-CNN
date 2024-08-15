@@ -40,7 +40,8 @@ class ResourceMeasurement:
         self.metric = metric
         self.metric_functions = {
             'latency': self._measure_latency,
-            'memory': self._measure_memory_footprint
+            'memory': self._measure_memory_footprint,
+            'accuracy': self._measure_accuracy
         }
 
     def _run_model(self, model, input_tensor):
