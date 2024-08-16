@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch
 from resource_measurement import ResourceMeasurement
 from evaluations.metrics import Evaluation
+from fine_tuning import Finetuner  # Import the Finetuner class
 
 
 class FilterPruner:
@@ -21,13 +22,17 @@ class FilterPruner:
         A utility to measure the resource usage (e.g., latency) of the model.
     evaluator : Evaluation
         An instance of the Evaluation class to evaluate model accuracy.
+    finetuner : Finetuner
+        An instance of the Finetuner class for finetuning the model.
     baseline_accuracy : float
         The baseline accuracy of the model before pruning.
+    finetune_steps : int
+        The number of finetuning steps to perform on each pruned model.
     """
 
-    def __init__(self, model, validation_loader, device='cuda'):
+    def __init__(self, model, validation_loader, device='cuda', finetune_steps=10, weight_decay=0.0005):
         """
-        Initializes the FilterPruner with a given model and validation data loader.
+        Initializes the FilterPruner with a given model, validation data loader, and finetuning parameters.
 
         Parameters
         ----------
@@ -37,12 +42,18 @@ class FilterPruner:
             The DataLoader for the validation dataset used to evaluate model accuracy.
         device : str, optional
             The device to run the pruning process on (default is 'cuda').
+        finetune_steps : int, optional
+            The number of finetuning steps to perform on each pruned model (default is 10).
+        weight_decay : float, optional
+            The weight decay (regularization) for the optimizer (default is 0.0005).
         """
         self.model = model
         self.device = device
         self.resource_measurer = ResourceMeasurement(metric='latency')
         self.evaluator = Evaluation(validation_loader, device)
+        self.finetuner = Finetuner(model, validation_loader, device, lr=0.001, weight_decay=weight_decay)
         self.baseline_accuracy = None
+        self.finetune_steps = finetune_steps
 
     def prune_layerwise(self,
                         input_tensor,
@@ -61,7 +72,6 @@ class FilterPruner:
             The target reduction in the performance metric (default is 0.05 for 5%).
         w : float, optional
             The weight factor used in the reward calculation (default is -0.15).
-            A negative value will penalize high latency, influencing pruning decisions.
         target_latency : float, optional
             The target latency to achieve. If None, it's set to the initial latency (default is None).
         reward_threshold : float, optional
@@ -87,6 +97,9 @@ class FilterPruner:
 
                 for filters_to_prune in range(1, num_filters):
                     pruned_layer = self.prune_filter(name, filters_to_prune)
+
+                    # Finetune the model with the pruned layer
+                    self.finetuner.finetune(self.finetune_steps)
 
                     new_metric = self.resource_measurer.measure(self.model, input_tensor)
                     new_accuracy = self.evaluator.evaluation_accuracy(self.model)
@@ -140,26 +153,53 @@ class FilterPruner:
         if layer.bias is not None:
             new_layer.bias.data = layer.bias.data[indices].clone()
 
+        self.model._modules[layer_name] = new_layer  # Update the model with the new layer
+
+        if layer_name + 1 < len(self.model._modules):
+            next_layer_name = list(self.model._modules.keys())[layer_name + 1]
+            next_layer = self.model._modules[next_layer_name]
+            if isinstance(next_layer, nn.Conv2d):
+                self._update_next_layer(next_layer, keep_filters)
+
         return new_layer
 
-    def replace_layer(self, model, name, new_layer):
+    def _update_next_layer(self, next_layer, keep_filters):
         """
-        Replaces the specified layer in the model with a new layer.
+        Adjusts the next convolutional layer to match the pruned output channels.
+
+        Parameters
+        ----------
+        next_layer : torch.nn.Conv2d
+            The convolutional layer immediately following the pruned layer.
+        keep_filters : int
+            The number of output filters kept from the pruned layer.
+        """
+        new_next_layer = nn.Conv2d(
+            in_channels=keep_filters,
+            out_channels=next_layer.out_channels,
+            kernel_size=next_layer.kernel_size,
+            stride=next_layer.stride,
+            padding=next_layer.padding,
+            bias=next_layer.bias is not None
+        )
+
+        new_next_layer.weight.data = next_layer.weight.data[:, :keep_filters].clone()
+        if next_layer.bias is not None:
+            new_next_layer.bias.data = next_layer.bias.data.clone()
+
+        self.model._modules[list(self.model._modules.keys())[self.model._modules.index(next_layer)]] = new_next_layer
+
+    def replace_layer(self, model, layer_name, new_layer):
+        """
+        Replaces a layer in the model with a new layer.
 
         Parameters
         ----------
         model : torch.nn.Module
-            The model containing the layer to be replaced.
-        name : str
+            The model in which the layer is to be replaced.
+        layer_name : str
             The name of the layer to be replaced.
         new_layer : torch.nn.Module
-            The new layer to replace the old layer.
-
-        Returns
-        -------
-        None
+            The new layer that will replace the old layer.
         """
-        components = name.split('.')
-        for comp in components[:-1]:
-            model = getattr(model, comp)
-        setattr(model, components[-1], new_layer)
+        model._modules[layer_name] = new_layer
