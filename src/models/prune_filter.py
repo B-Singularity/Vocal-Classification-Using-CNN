@@ -79,9 +79,11 @@ class FilterPruner:
 
         for name, layer in self.model.named_modules():
             if isinstance(layer, nn.Conv2d):
-                print(f"Pruning layer {name}")
+                print(f"Evaluating layer {name}")
 
                 num_filters = layer.out_channels
+                best_proposal = None
+                best_tradeoff = -float('inf')  # Initialize with negative infinity
 
                 for filters_to_prune in range(1, num_filters):
                     pruned_layer = self.prune_filter(name, filters_to_prune)
@@ -92,14 +94,17 @@ class FilterPruner:
                     latency_change = (initial_metric - new_metric) / initial_metric
                     accuracy_change = (self.baseline_accuracy - new_accuracy) / self.baseline_accuracy
 
-                    reward = (new_accuracy / self.baseline_accuracy) * ((new_metric / target_latency) ** w)
+                    tradeoff = (accuracy_change / latency_change) if latency_change != 0 else -float('inf')
 
-                    if latency_change > target_metric_reduction or reward < reward_threshold:
-                        self.replace_layer(self.model, name, layer)
-                        break
-                    else:
-                        initial_metric = new_metric
-                        self.baseline_accuracy = new_accuracy
+                    if tradeoff > best_tradeoff and latency_change > target_metric_reduction:
+                        best_tradeoff = tradeoff
+                        best_proposal = (name, pruned_layer, new_metric, new_accuracy)
+
+                if best_proposal:
+                    name, best_layer, new_metric, new_accuracy = best_proposal
+                    self.replace_layer(self.model, name, best_layer)
+                    initial_metric = new_metric
+                    self.baseline_accuracy = new_accuracy
 
     def prune_filter(self, layer_name, num_filters_to_prune):
         """
@@ -134,8 +139,6 @@ class FilterPruner:
         new_layer.weight.data = layer.weight.data[indices].clone()
         if layer.bias is not None:
             new_layer.bias.data = layer.bias.data[indices].clone()
-
-        self.replace_layer(self.model, layer_name, new_layer)
 
         return new_layer
 
