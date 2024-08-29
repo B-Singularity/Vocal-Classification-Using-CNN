@@ -1,6 +1,6 @@
 class SearchSpace:
     def __init__(self):
-        self.conv_ops = ['conv', 'dconv', 'mbconv']  # Convolution operations
+        self.conv_ops = ['conv', 'dconv', 'mbconv', 'pconv']  # Convolution operations
         self.kernel_sizes = [3, 5]  # Kernel sizes
         self.se_ratios = [0, 0.25]  # Squeeze-and-Excitation ratios
         self.skip_ops = ['none', 'identity', 'pool']  # Skip operations
