@@ -63,7 +63,7 @@ class MacroController(Controller):
         self.skip_weight = skip_weight
 
         self._create_params()
-        self._build_sample()
+        self._build_sampler()
 
     def _uniform_initializer(self, tensor, minval=-0.1, maxval=0.1):
         return init.uniform_(tensor, minval, maxval)
