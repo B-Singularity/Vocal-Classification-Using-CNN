@@ -5,7 +5,7 @@ class Controller(ABC):
         super().__init__()
 
     @abstractmethod
-    def _build_sample(self):
+    def _build_sampler(self):
         pass
 
     @abstractmethod
