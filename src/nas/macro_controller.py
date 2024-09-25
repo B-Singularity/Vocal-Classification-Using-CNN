@@ -102,6 +102,9 @@ class MacroController(Controller):
                     self._uniform_initializer(w_count, minval=-0.1, maxval=0.1)
                     self.w_soft["start"].append(w_start)
                     self.w_soft["count"].append(w_count)
+            self.w_attn_1 = nn.Parameter(torch.Tensor(self.lstm_size, self.lstm_size))
+            self.w_attn_2 = nn.Parameter(torch.Tensor(self.lstm_size, self.lstm_size))
+            self.v_attn = nn.Parameter(torch.Tensor(self.lstm_size, 1))
 
     def _build_sampler(self):
         with torch.no_grad():
@@ -116,7 +119,7 @@ class MacroController(Controller):
             skip_penalties = []
 
             prev_c = [torch.zeros(1, self.lstm_size) for _ in range(self.lstm_num_layers)]
-            prev_h = [torch.zeors(1, self.lstm_size) for _ in range(self.lstm_num_layers)]
+            prev_h = [torch.zeros(1, self.lstm_size) for _ in range(self.lstm_num_layers)]
             inputs = self.g_emb
             skip_targets = torch.tensor([1.0 - self.skip_target, self.skip_weight], dtype=torch.float32)
 
@@ -155,7 +158,7 @@ class MacroController(Controller):
                         if self.temperature is not None:
                             logit /= self.temperature
                         if self.tanh_constant is not None:
-                            logit *= self.tanh_constant * torch.tanh(logit)
+                            logit = self.tanh_constant * torch.tanh(logit)
 
                         start = torch.multinomial(F.softmax(logit, dim=-1), 1)
                         start = start.view(1)
@@ -174,7 +177,7 @@ class MacroController(Controller):
                             logit /= self.temperature
                         if self.tanh_constant is not None:
                             logit = self.tanh_constant * torch.tanh(logit)
-                        mask = torch.arange(0, self.out_filters-1, dytpe=torch.int32).view(1, -1)
+                        mask = torch.arange(0, self.out_filters-1, dtype=torch.int32).view(1, -1)
                         mask = mask <= (self.out_filters - 1 - start)
                         logit = torch.where(mask, logit, torch.full_like(logit, -float('inf')))
                         count = torch.multinomial(logit, 1)
@@ -188,7 +191,41 @@ class MacroController(Controller):
                     next_c, next_h = stack_lstm(inputs, prev_c, prev_h, self.w_lstm)
                     prev_c, prev_h = next_c, next_h
 
-                    """attension 구현?"""
+                    if layer_id > 0:
+                        query = torch.cat(anchors_w_1, dim=0)
+                        query = torch.tanh(query + torch.matmul(next_h[-1], self.w_attn_2))
+                        query = torch.matmul(query, self.v_attn)
+                        logit = torch.cat([-query, query], dim=1)
+
+                        if self.temperature is not None:
+                            logit /= self.temperature
+                        if self.tanh_constant is not None:
+                            logit = self.tanh_constant * torch.tanh(logit)
+
+                        skip = torch.multinomial(F.softmax(logit, dim=-1), 1)
+                        skip = skip.view(layer_id)
+                        arc_seq.append(skip)
+
+                        skip_prob = torch.sigmoid(logit)
+                        kl = skip_prob * torch.log(skip_prob) / skip_targets
+                        kl = torch.sum(kl)
+                        skip_penalties.append(kl)
+
+                        log_prob = F.cross_entropy(logit, skip)
+                        log_probs.append(log_prob.sum())
+
+                        entropy = log_prob.sum() * torch.exp(-log_prob.sum())
+                        entropys.append(entropy.sum())
+
+                        skip = skip.float().view(1, layer_id)
+                        skip_count.append(skip.sum())
+                        inputs = torch.matmul(skip, torch.cat(anchors, dim=0))
+                        inputs /= (1.0 + skip.sum())
+                    else:
+                        inputs = self.g_emb
+
+                    anchors.append(next_h[-1].detach())
+                    anchors_w_1.append(torch.matmul(next_h[-1].detach(), self.w_attn_1))
 
                 arc_seq = torch.cat(arc_seq, dim=0)
                 self.sample_arc = arc_seq.view(-1)
@@ -204,6 +241,11 @@ class MacroController(Controller):
 
                 skip_penalties = torch.stack(skip_penalties)
                 self.skip_penalties = skip_penalties.mean()
+
+
+
+
+
 
 
 

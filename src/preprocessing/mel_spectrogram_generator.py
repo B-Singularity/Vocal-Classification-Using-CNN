@@ -28,7 +28,7 @@ class MelSpectrogramGenerator:
 
     """
 
-    def __init__(self, save_path, sr, n_mels, hop_length):
+    def __init__(self, save_path, sr, n_fft, n_mels, hop_length):
         """
         Initializes the MelSpectrogramGenerator instance.
 
@@ -45,6 +45,7 @@ class MelSpectrogramGenerator:
         """
         self.save_path = save_path
         self.sr = sr
+        self.n_fft = n_fft
         self.n_mels = n_mels
         self.hop_length = hop_length
         FileSystemHelper.ensure_directory_exists(save_path)
@@ -61,11 +62,13 @@ class MelSpectrogramGenerator:
             File name to save the generated spectrogram image.
         """
         # Generate Mel spectrogram and convert to log scale
-        mel = librosa.feature.melspectrogram(y=y, sr=self.sr, n_mels=self.n_mels, hop_length=self.hop_length)
+        mel = librosa.feature.melspectrogram(y=y, sr=self.sr,n_fft=self.n_fft, n_mels=self.n_mels, hop_length=self.hop_length)
         log_mel = librosa.power_to_db(mel, ref=np.max)
 
         # Plot and save the spectrogram as an image
-        plt.figure(figsize=(10, 4))
-        librosa.display.specshow(log_mel, sr=self.sr, hop_length=self.hop_length, cmap='viridis')
+        plt.figure(figsize=(20, 10))
+        librosa.display.specshow(log_mel, sr=self.sr, hop_length=self.hop_length, cmap='viridis', x_axis='time',
+                                 y_axis='mel')
+        plt.colorbar(format='%+2.0f dB')  # 색상 막대 추가
         plt.savefig(f"{self.save_path}/{file_name}", bbox_inches='tight', pad_inches=0)
         plt.close()

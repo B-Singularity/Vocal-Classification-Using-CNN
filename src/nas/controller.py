@@ -13,6 +13,6 @@ class Controller(ABC):
         pass
 
     @abstractmethod
-    def _build_trainer(self):
+    def build_trainer(self):
         pass
 

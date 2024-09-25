@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 
 def lstm(x, prev_c, prev_h, w):
     ifog = torch.matmul(torch.cat([x, prev_h], dim=1), w)

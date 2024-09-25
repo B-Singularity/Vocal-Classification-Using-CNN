@@ -20,7 +20,7 @@ class ConvertToMelSpectrogram:
         mel_generator (MelSpectrogramGenerator): Instance of MelSpectrogramGenerator to generate and save mel spectrograms.
     """
 
-    def __init__(self, folder_path, save_path, sr, duration, n_mels, hop_length):
+    def __init__(self, folder_path, save_path, sr, n_fft, duration, n_mels, hop_length):
         """
         Initializes the ConverToMelSpectrogram class with provided parameters.
 
@@ -35,12 +35,13 @@ class ConvertToMelSpectrogram:
         self.folder_path = folder_path
         self.save_path = save_path
         self.sr = sr
+        self.n_fft = n_fft
         self.duration = duration
         self.n_mels = n_mels
         self.hop_length = hop_length
 
         self.audio_processor = AudioProcessor(sr, duration)
-        self.mel_generator = MelSpectrogramGenerator(save_path, sr, n_mels, hop_length)
+        self.mel_generator = MelSpectrogramGenerator(save_path, sr, n_fft, n_mels, hop_length)
 
     def convert_folder_to_mel_spectrogram(self):
         """
