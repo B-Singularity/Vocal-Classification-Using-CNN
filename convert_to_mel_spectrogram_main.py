@@ -6,8 +6,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from preprocessing.convert_to_mel_spectrogram import ConvertToMelSpectrogram
 
 def main():
-    folder_path = '/Users/seong-gyeongjun/Downloads/vocal artist/stone/wav'
-    save_path = '/Users/seong-gyeongjun/Downloads/vocal artist/stone/mel'
+    folder_path = '/Users/seong-gyeongjun/Downloads/vocal artist/sia/wav'
+    save_path = '/Users/seong-gyeongjun/Downloads/vocal artist/sia/mel'
 
     sr = 22050
     n_fft = 2048

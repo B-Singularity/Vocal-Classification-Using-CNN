@@ -16,7 +16,7 @@ def main():
     labeler.label_spectrogram(mel_dir_name, extension)
 
     # Save the labeled data to a CSV file
-    output_csv_path = '/Users/seong-gyeongjun/Downloads/vocal_label/output2.csv'
+    output_csv_path = '/Users/seong-gyeongjun/Downloads/vocal_label/output.csv'
     labeler.save_to_csv(output_csv_path)
 
     # Optionally, you can also save the labeled data to a DataFrame

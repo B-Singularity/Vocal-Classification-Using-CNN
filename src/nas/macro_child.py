@@ -1,4 +1,98 @@
-
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from common_ops import create_weight
+from common_ops import create_bias
 
 
 class MacroChild():
+    def __init__(self,
+                 images,
+                 labels,
+                 whole_channels,
+                 data_format="NHWC",
+                 fixed_arc=None,
+                 filters_scale=1,
+                 num_layres=2,
+                 num_branches=6,
+                 filters=24,
+                 keep_prob=1.0,
+                 batch_size=32,
+                 clip_mode=None,
+                 grad_bound=None,
+                 l2_reg=1e-4,
+                 lr_init=0.1,
+                 lr_dec_start=0,
+                 lr_dec_every=10000,
+                 lr_dec_rate=0.1,
+                 lr_cosine=False,
+                 lr_max=None,
+                 lr_min=None,
+                 lr_T_num=None,
+                 optim_algo=None,
+                 sync_replicas=False,
+                 num_aggregate=None,
+                 num_replicas=None,
+                 name="child",
+                 *args,
+                 **kwargs
+                 ):
+        self.images = images
+        self.labels = labels
+        self.whole_channels = whole_channels
+        self.data_format = data_format
+        self.fixed_arc = fixed_arc
+        self.filters_scale = filters_scale
+        self.num_layres = num_layres
+        self.num_branches = num_branches
+        self.filters = filters
+        self.keep_prob = keep_prob
+        self.batch_size = batch_size
+        self.clip_mode = clip_mode
+        self.grad_bound = grad_bound
+        self.l2_reg = l2_reg
+        self.lr_init = lr_init
+        self.lr_dec_start = lr_dec_start
+        self.lr_dec_every = lr_dec_every
+        self.lr_dec_rate = lr_dec_rate
+        self.lr_cosine = lr_cosine
+        self.lr_max = lr_max
+        self.lr_min = lr_min
+        self.lr_T_num = lr_T_num
+        self.optim_algo = optim_algo
+        self.sync_replicas = sync_replicas
+        self.num_aggregate = num_aggregate
+        self.num_replicas = num_replicas
+        self.name = name
+
+    def _get_C(self, x):
+        if self.data_format == "NHWC":
+            return x.get_shape()[3].value
+        elif self.data_format == "NCHW":
+            return x.get_shape()[1].value
+        else:
+            raise ValueError("Unknown data_format '{0}'".format(self.data_format))
+
+    def _get_stride(self, stride):
+        if self.data_format == "NHWC":
+            return [1, stride, stride, 1]
+        elif self.data_format == "NCHW":
+            return [1, 1, stride, stride]
+        else:
+            raise ValueError("Unknown data_format '{0}'".format(self.data_format))
+
+    def _factorized_reduction(self, x, filters, stride):
+        assert filters % 2 == 0, (
+            "filters must be a even number."
+        )
+        if stride == 1:
+            c = self._get_C(x)
+            w = create_weight("w", [1, 1, c, filters])
+            path1 = F.conv2d(x, w, stride=1)
+            path1 = nn.BatchNorm2d(filters)(path1)
+            return path1
+
+        path1 = F.avg_pool2d(x, kernel_size=1, stride=stride)
+        path1 = F.conv2d(path1, )
+
+
