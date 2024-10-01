@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from common_ops import create_weight
 from common_ops import create_bias
+from image_ops import batch_norm
 
 
 class MacroChild():
@@ -89,10 +90,33 @@ class MacroChild():
             c = self._get_C(x)
             w = create_weight("w", [1, 1, c, filters])
             path1 = F.conv2d(x, w, stride=1)
-            path1 = nn.BatchNorm2d(filters)(path1)
+            path1 = batch_norm(x, data_format=self.data_format)
             return path1
 
         path1 = F.avg_pool2d(x, kernel_size=1, stride=stride)
-        path1 = F.conv2d(path1, )
+        w1 = create_weight("w1", [1, 1, self._get_C(path1), filters // 2])
+        path1 = F.conv2d(path1, w1, stride=1)
+
+        if self.data_format == "NHWC":
+            pad_arr = [0, 1, 0, 1]
+            x_padded = F.pad(x, pad_arr)
+            path2 = x_padded[:, 1:, 1:, :]
+        else:
+            pad_arr = [0, 0, 0, 1, 0, 1]
+            x_padded = F.pad(x, pad_arr)
+            path2 = x_padded[:, :, 1:, 1:]
+
+        path2 = F.avg_pool2d(path2, kernel_size=1, stride=stride)
+        w2 = create_weight("w2", [1, 1, self._get_C(path2), filters // 2])
+        path2 = F.conv2d(path2, w2, stride=1)
+
+        final_path = torch.cat([path1, path2], dim=1 if self.data_format == 'NCHW' else 3)
+        final_path = batch_norm(final_path, data_format=self.data_format)
+
+        return final_path
+
+
+
+
 
 
