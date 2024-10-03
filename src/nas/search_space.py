@@ -1,15 +1,12 @@
+from abc import ABC, abstractmethod
+
 class SearchSpace:
     def __init__(self):
-        self.items = []
+        pass
 
-    def add_item(self, item):
-        self.items.append(item)
-
-    def sample(self):
-        sample = {}
-        for item in self.items:
-            sample[item.name] = item.sample()
-        return sample
-
-    def __repr__(self):
-        return f"SearchSpace({self.items})"
+    @abstractmethod
+    def get_search_space_ops(self) -> dict:
+        """
+        Returns search space ops as a dictionary of lists.
+        """
+        pass

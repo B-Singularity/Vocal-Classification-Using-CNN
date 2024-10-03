@@ -82,21 +82,23 @@ class MacroChild():
         else:
             raise ValueError("Unknown data_format '{0}'".format(self.data_format))
 
-    def _factorized_reduction(self, x, filters, stride):
-        assert filters % 2 == 0, (
+    def _factorized_reduction(self, x, out_filters, stride):
+        assert out_filters % 2 == 0, (
             "filters must be a even number."
         )
         if stride == 1:
             c = self._get_C(x)
-            w = create_weight("w", [1, 1, c, filters])
+            w = create_weight("w", [1, 1, c, out_filters])
             path1 = F.conv2d(x, w, stride=1)
-            path1 = batch_norm(x, data_format=self.data_format)
+            path1 = batch_norm(path1, data_format=self.data_format)
             return path1
 
+        # path1: AvgPooling + Conv
         path1 = F.avg_pool2d(x, kernel_size=1, stride=stride)
-        w1 = create_weight("w1", [1, 1, self._get_C(path1), filters // 2])
+        w1 = create_weight("w1", [1, 1, self._get_C(path1), out_filters // 2])
         path1 = F.conv2d(path1, w1, stride=1)
 
+        # path2: padding + shifting + AvgPooling + Conv
         if self.data_format == "NHWC":
             pad_arr = [0, 1, 0, 1]
             x_padded = F.pad(x, pad_arr)
@@ -107,13 +109,32 @@ class MacroChild():
             path2 = x_padded[:, :, 1:, 1:]
 
         path2 = F.avg_pool2d(path2, kernel_size=1, stride=stride)
-        w2 = create_weight("w2", [1, 1, self._get_C(path2), filters // 2])
+        w2 = create_weight("w2", [1, 1, self._get_C(path2), out_filters // 2])
         path2 = F.conv2d(path2, w2, stride=1)
 
+        # Apply BatchNorm after concat two path
         final_path = torch.cat([path1, path2], dim=1 if self.data_format == 'NCHW' else 3)
         final_path = batch_norm(final_path, data_format=self.data_format)
 
         return final_path
+
+
+    def _conv_branch(self,
+                     inputs,
+                     filter_size,
+                     num_out_channels,
+                     out_filters,
+                     start_idx=None,
+                     ):
+        if start_idx is None:
+            assert self.fixed_arc is not None, "you need start_idx or fixed_arc"
+
+        if self.data_format == "NHWC":
+            c = inputs.get_shape()[3].value
+        elif self.data_format == "NCHW":
+            c = inputs.get_shape()[1].value
+
+
 
 
 
