@@ -1,12 +1,11 @@
 import torch.nn as nn
+import torch.nn.functional as F
+from nas.common_ops import create_weight
 
 class DepthwiseConv(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, initializer=None):
         super(DepthwiseConv, self).__init__()
-        self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1,
-                                   groups=in_channels)
+        self.weight = create_weight([in_channels, 1, 3, 3], initializer=initializer)
 
     def forward(self, x):
-        x = self.depthwise(x)
-
-        return x
+        return F.conv2d(x, self.weight, groups=self.in_channels, padding=1)

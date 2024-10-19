@@ -4,7 +4,8 @@ import torch.nn.functional as F
 from common_ops import create_weight
 from common_ops import create_bias
 from image_ops import batch_norm
-from models import pointwise_conv
+from models.depthwise_conv import DepthwiseConv
+from models.pointwise_conv import PointwiseConv
 
 
 class MacroChild():
@@ -123,9 +124,11 @@ class MacroChild():
     def _conv_branch(self,
                      inputs,
                      filter_size,
-                     num_out_channels,
+                     count,
                      out_filters,
+                     ch_mul=1,
                      start_idx=None,
+                     seperable=False
                      ):
         if start_idx is None:
             assert self.fixed_arc is not None, "you need start_idx or fixed_arc"
@@ -135,10 +138,25 @@ class MacroChild():
         elif self.data_format == "NCHW":
             c = inputs.get_shape()[1].value
 
-        w_inp_conv_1 = create_weight("w", [1, 1, c, out_filters]);
-        x = pointwise_conv.PointwiseConv(c, out_filters)(inputs);
+        x = PointwiseConv(c, out_filters)(inputs)
         x = batch_norm(x, data_format=self.data_format)
-        x = F.relu(x);
+        x = F.relu(x)
+
+        if start_idx is None:
+            if seperable:
+                depthwise_conv = DepthwiseConv(in_channels=out_filters)
+                x = depthwise_conv(x)
+                pointwise_conv = PointwiseConv(in_channels=out_filters * ch_mul, out_channels=count)
+                x = pointwise_conv(x)
+            else:
+                x = nn.Conv2d(c, count, kernel_size=filter_size, padding=filter_size // 2)
+                x = batch_norm(x, data_format=self.data_format)
+
+        else:
+            if seperable:
+
+
+
 
 
 
