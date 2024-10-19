@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from common_ops import create_weight
 from common_ops import create_bias
 from image_ops import batch_norm
+from models import pointwise_conv
 
 
 class MacroChild():
@@ -133,6 +134,12 @@ class MacroChild():
             c = inputs.get_shape()[3].value
         elif self.data_format == "NCHW":
             c = inputs.get_shape()[1].value
+
+        w_inp_conv_1 = create_weight("w", [1, 1, c, out_filters]);
+        x = pointwise_conv.PointwiseConv(c, out_filters)(inputs);
+        x = batch_norm(x, data_format=self.data_format)
+        x = F.relu(x);
+
 
 
 

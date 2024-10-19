@@ -9,6 +9,7 @@ class EnasSearchSpace(SearchSpace):
     def get_search_space(self):
         return {
             'ConvOp': self.conv_ops,
+            'kernal_size': [3, 5],
             'PoolOp': self.pool_ops
         }
 
