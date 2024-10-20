@@ -120,6 +120,91 @@ class MacroChild():
 
         return final_path
 
+    def _enas_layer(self, layer_id, prev_layers, start_idx, out_filters):
+
+        inputs = prev_layers[-1]
+        if self.whole_channels:
+            if self.data_format == "NHWC":
+                inp_h = inputs.get_shape()[1].value
+                inp_w = inputs.get_shape()[2].value
+                inp_c = inputs.get_shape()[3].value
+            elif self.data_format == "NCHW":
+                inp_c = inputs.get_shape()[1].value
+                inp_h = inputs.get_shape()[2].value
+                inp_w = inputs.get_shape()[3].value
+
+            count = self.sample_arc[start_idx]
+            branches = {}
+
+            if count == 0:
+                y = self._conv_branch(inputs, 3, out_filters=out_filters, seperable=False)
+                branches[0] = y
+
+            elif count == 1:
+                y = self._conv_branch(inputs, 3, out_filters=out_filters, seperable=True)
+                branches[1] = y
+
+            elif count == 2:
+                y = self._conv_branch(inputs, 5, out_filters=out_filters, seperable=False)
+                branches[2] = y
+
+            elif count == 3:
+                y = self._conv_branch(inputs, 5, out_filters=out_filters, seperable=True)
+                branches[3] = y
+
+            elif count == 4:
+                y = self._pool_branch(inputs, mode="avg")
+                branches[4] = y
+
+            elif count == 5:
+                y = self._pool_branch(inputs, mode="max")
+                branches[5] = y
+
+            out =  branches.get(count, torch.zeros_like(inputs))
+
+        else:
+            count = self.sample_arc[start_idx:start_idx + 2 * self.num_branches]
+            branches = {}
+            branches.append(self._conv_branch(inputs, 3, out_filters=out_filters, seperable=False))
+            branches.append(self._conv_branch(inputs, 3, out_filters=out_filters, seperable=True))
+            branches.append(self._conv_branch(inputs, 5, out_filters=out_filters, seperable=False))
+            branches.append(self._conv_branch(inputs, 5, out_filters=out_filters, seperable=True))
+
+            if self.num_branches >= 5:
+                branches.append(self._pool_branch(inputs, mode="avg"))
+            if self.num_branches >= 6:
+                branches.append(self._pool_branch(inputs,mode="max"))
+
+            branches = torch.cat(branches, dim=1)
+
+            w = create_weight([self.num_branches * out_filters, out_filters])
+            w_mask = torch.zeros(self.num_branches * out_filters, dtype=torch.bool)
+            new_range = torch.arange(self.num_branches * self.out_filters)
+
+            for i in range(self.num_branches):
+                start = out_filters * i + count[2 * i]
+                w_mask = torch.logical_or(w_mask, (new_range >= start) & (new_range < start + count[2 * i + 1]))
+
+            w = w[w_mask].view(-1, out_filters)
+
+
+            # Apply convolution
+            out = F.conv2d(branches, w.unsqueeze(2).unsqueeze(3))
+
+        # Skip connections
+        if layer_id > 0:
+            skip_start = start_idx + (1 if self.whole_channels else 2 * self.num_branches)
+            skip = self.sample_arc[skip_start: skip_start + layer_id]
+            res_layers = [torch.zeros_like(prev_layers[i]) if skip[i] == 0 else prev_layers[i] for i in range(layer_id)]
+            res_layers.append(out)
+            out = torch.stack(res_layers, dim=0).sum(dim=0)
+
+        # Batch norm and relu activation
+        out = batch_norm(out)
+        out = F.relu(out)
+
+        return out
+
 
     def _conv_branch(self,
                      inputs,
@@ -200,6 +285,8 @@ class MacroChild():
             x = x[:, start_idx:start_idx + count, :, :]
 
         return x
+
+
 
 
 
