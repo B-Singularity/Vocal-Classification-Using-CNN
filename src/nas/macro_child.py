@@ -154,6 +154,56 @@ class MacroChild():
 
         else:
             if seperable:
+                depthwise_conv = DepthwiseConv(in_channels=out_filters)
+                x = depthwise_conv(x)
+
+                w_pointwise = create_weight([out_filters * ch_mul, out_filters])
+                w_pointwise = w_pointwise[start_idx:start_idx + count, :]
+                w_pointwise = w_pointwise(0, 1)
+                w_pointwise = w_pointwise.view(1, 1, out_filters * ch_mul, count)
+                x = F.conv2d(x, w_pointwise, stride=1, padding=filter_size // 2)
+            else:
+                w = create_weight([filter_size, filter_size, out_filters, out_filters])
+                w = w.transpose(0, 3)
+                w = w[start_idx:start_idx + count, :, :, :]
+                x = F.conv2d(x, w, stride=1, padding=filter_size // 2)
+
+        return x
+
+    def _pool_branch(self,
+                     inputs,
+                     out_filters,
+                     count,
+                     mode,
+                     start_idx=None):
+
+        if start_idx is None:
+            assert self.fixed_arc is not None, "you need start_idx or fixed_arc"
+
+        if self.data_format == "NHWC":
+            c = inputs.get_shape()[3].value
+        elif self.data_format == "NCHW":
+            c = inputs.get_shape()[1].value
+
+        x = PointwiseConv(c, out_filters)(inputs)
+        x = batch_norm(x, data_format=self.data_format)
+        x = F.relu(x)
+
+        if mode == "avg":
+            x = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1)
+        elif mode == "max":
+            x = F.max_pool2d(x, kernel_size=3, stride=1, padding=1)
+        else:
+            raise ValueError("mode should be: avg or max")
+
+        if start_idx is None:
+            x = x[:, start_idx:start_idx + count, :, :]
+
+        return x
+
+
+
+
 
 
 
