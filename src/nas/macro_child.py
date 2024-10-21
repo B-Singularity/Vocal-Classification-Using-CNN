@@ -43,6 +43,7 @@ class MacroChild():
         self.images = images
         self.labels = labels
         self.whole_channels = whole_channels
+        self.batch_norm_layer = batch_norm
         self.data_format = data_format
         self.fixed_arc = fixed_arc
         self.filters_scale = filters_scale
@@ -116,7 +117,7 @@ class MacroChild():
 
         # Apply BatchNorm after concat two path
         final_path = torch.cat([path1, path2], dim=1 if self.data_format == 'NCHW' else 3)
-        final_path = batch_norm(final_path, data_format=self.data_format)
+        final_path = self.batch_norm_layer(final_path, data_format=self.data_format)
 
         return final_path
 
@@ -200,10 +201,92 @@ class MacroChild():
             out = torch.stack(res_layers, dim=0).sum(dim=0)
 
         # Batch norm and relu activation
-        out = batch_norm(out)
+        out = self.batch_norm_layer(out)
         out = F.relu(out)
 
         return out
+
+
+    def _fixed_layer(self,
+                     layer_id,
+                     prev_layers,
+                     start_idx,
+                     out_filters):
+
+        inputs = prev_layers[-1]
+        if self.whole_channels:
+            if self.data_format == "NHWC":
+                c = inputs.get_shape()[3].value
+            elif self.data_format == "NCHW":
+                c = inputs.get_shape()[1].value
+
+            count = self.sample_arc[start_idx]
+            if count in [0, 1, 2, 3]:
+                size = [3, 3, 5, 5]
+                filter_size = size[count]
+
+                out = F.relu(PointwiseConv(c, out_filters)(inputs))
+                out = self.batch_norm_layer(out, data_format=self.data_format)
+
+                conv_filter = nn.Conv2d(out_filters, out_filters, kernel_size=filter_size,padding=filter_size//2)
+                out = F.relu(conv_filter(out))
+                out = self.batch_norm_layer(out, data_format=self.data_format)
+
+            elif count == 4:
+                out = self._pool_branch(inputs, out_filters, mode="avg")
+
+            elif count == 5:
+                out = self._pool_branch(inputs, out_filters, mode="max")
+
+            else:
+                raise ValueError(f"Invalid layer id {layer_id}")
+        else:
+            count = self.sample_arc[start_idx:start_idx + 2 * self.num_branches] * self.filters_scale
+            branches = []
+            total_out_channels = 0
+
+            total_out_channels += count[1]
+            branches.append(self._conv_branch(inputs, 3, count[1]))
+
+            total_out_channels += count[3]
+            branches.append(self._conv_branch(inputs, 3, count[3], seperable=True))
+
+            total_out_channels += count[5]
+            branches.append(self._conv_branch(inputs, 5, count[5]))
+
+            total_out_channels += count[7]
+            branches.append(self._conv_branch(inputs, 5, count[7], seperable=True))
+
+            if self.num_branches >= 5:
+                total_out_channels += count[9]
+                branches.append(self._pool_branch(inputs, count[9], mode="avg"))
+
+            if self.num_branches >= 6:
+                total_out_channels += count[11]
+                branches.append(self._pool_branch(inputs, count[11], mode="max"))
+
+            final_conv = nn.Conv2d(total_out_channels, out_filters, kernel_size=1)
+            out = F.relu(final_conv(torch.cat(branches, dim=1)))
+            out = self.batch_norm_layer(out_filters, data_format=self.data_format)
+
+        if layer_id > 0:
+            skip_start = start_idx + (1 if self.whole_channels else 2 * self.num_branches)
+            skip = self.sample_arc[skip_start: skip_start + layer_id]
+            total_skip_channels = sum(skip)
+
+            res_layers = [prev_layers[i] for i in range(layer_id) if skip[i] == 1]
+            prev = torch.cat(res_layers + [out], dim=0)
+
+            skip_conv = nn.Conv2d(total_skip_channels * out_filters, out_filters, kernel_size=1)
+            out = F.relu(skip_conv(prev))
+            out = self.batch_norm_layer(out_filters)(out)
+
+        return out
+
+
+
+
+
 
 
     def _conv_branch(self,
@@ -224,7 +307,7 @@ class MacroChild():
             c = inputs.get_shape()[1].value
 
         x = PointwiseConv(c, out_filters)(inputs)
-        x = batch_norm(x, data_format=self.data_format)
+        x = self.batch_norm_layer(x, data_format=self.data_format)
         x = F.relu(x)
 
         if start_idx is None:
@@ -235,7 +318,7 @@ class MacroChild():
                 x = pointwise_conv(x)
             else:
                 x = nn.Conv2d(c, count, kernel_size=filter_size, padding=filter_size // 2)
-                x = batch_norm(x, data_format=self.data_format)
+                x = self.batch_norm_layer(x, data_format=self.data_format)
 
         else:
             if seperable:
@@ -271,7 +354,7 @@ class MacroChild():
             c = inputs.get_shape()[1].value
 
         x = PointwiseConv(c, out_filters)(inputs)
-        x = batch_norm(x, data_format=self.data_format)
+        x = self.batch_norm_layer(x, data_format=self.data_format)
         x = F.relu(x)
 
         if mode == "avg":
