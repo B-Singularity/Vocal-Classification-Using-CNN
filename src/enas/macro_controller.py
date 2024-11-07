@@ -1,4 +1,4 @@
-from nas.controller import Controller
+from enas.controller import Controller
 import torch.nn.init as init
 import torch.nn as nn
 import torch

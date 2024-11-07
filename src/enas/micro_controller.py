@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from nas.controller import Controller
-from nas.common_ops import stack_lstm
+from enas.controller import Controller
+from enas.common_ops import stack_lstm
 
 
 

@@ -1,5 +1,5 @@
 import torch.nn as nn
-from nas.common_ops import create_weight
+from enas.common_ops import create_weight
 import torch.nn.functional as F
 
 class PointwiseConv(nn.Module):
